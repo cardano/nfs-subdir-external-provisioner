@@ -6,9 +6,11 @@ Note: This repository is being migrated from https://github.com/kubernetes-incub
 
 ```sh
 make build
-# Set a custom image registry to push the container image
-# Example REGISTRY="quay.io/myorg"
-make image
+make container
+# `nfs-subdir-external-provisioner:latest` will be created. 
+# To upload this to your customer registry, say `quay.io/myorg`, you can use
+# docker tag nfs-subdir-external-provisioner:latest quay.io/myorg/nfs-subdir-external-provisioner:latest
+# docker push quay.io/myorg/nfs-subdir-external-provisioner:latest
 ```
 
 ## How to deploy nfs-client to your cluster
@@ -19,12 +21,16 @@ To note again, you must _already_ have an NFS Server.
 
 ### With Helm
 
-Follow the instructions for the stable helm chart maintained at https://github.com/helm/charts/tree/master/stable/nfs-client-provisioner
+Follow the instructions from the helm chart [README](deploy/helm/README.md).
 
 The tl;dr is
 
-```bash
-$ helm install stable/nfs-client-provisioner --set nfs.server=x.x.x.x --set nfs.path=/exported/path
+```console
+$ git clone https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner.git
+$ cd nfs-subdir-external-provisioner/deploy/helm/
+$ helm install nfs-subdir-external-provisioner . \
+    --set nfs.server=x.x.x.x \
+    --set nfs.path=/exported/path
 ```
 
 ### Without Helm
@@ -179,3 +185,20 @@ spec:
     requests:
       storage: 1Mi
 ```
+
+# Build and publish with GitHub Actions
+
+In a forked repository you can use GitHub Actions pipeline defined in [.github/workflows/release.yml](.github/workflows/release.yml). The pipeline builds Docker images for `linux/amd64`, `linux/arm64`, and `linux/arm/v7` platforms and publishes them using a multi-arch manifest. The pipeline is triggered when you add a tag like `gh-v{major}.{minor}.{patch}` to your commit and push it to GitHub. The tag is used for generating Docker image tags: `latest`, `{major}`, `{major}:{minor}`, `{major}:{minor}:{patch}`.
+
+The pipeline adds several labels:
+* `org.opencontainers.image.title=${{ github.event.repository.name }}`
+* `org.opencontainers.image.description=${{ github.event.repository.description }}`
+* `org.opencontainers.image.url=${{ github.event.repository.html_url }}`
+* `org.opencontainers.image.source=${{ github.event.repository.clone_url }}`
+* `org.opencontainers.image.created=${{ steps.prep.outputs.created }}`
+* `org.opencontainers.image.revision=${{ github.sha }}`
+* `org.opencontainers.image.licenses=${{ github.event.repository.license.spdx_id }}`
+
+**Important:**
+* The pipeline performs the docker login command using `REGISTRY_USERNAME` and `REGISTRY_TOKEN` secrets, which have to be provided.
+* You also need to provide the `DOCKER_IMAGE` secret specifying your Docker image name, e.g., `quay.io/[username]/nfs-subdir-external-provisioner`.
